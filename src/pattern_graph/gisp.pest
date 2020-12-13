@@ -1,0 +1,23 @@
+Query = {
+      SOI
+    ~ "(" ~ "match"
+    ~ Vertices
+    ~ Arcs?
+    ~ Edges?
+    ~ Where?
+    ~ ")"
+    ~ EOI
+}
+
+Vertices = { "(" ~ "vertices" ~ Vertex+ ~ ")" }
+Arcs = { "(" ~ "arcs" ~ Edge+ ~ ")" }
+Edges = { "(" ~ "edges" ~ Edge+ ~ ")" }
+Where = { "(" ~ "where" ~ ")"}
+
+Vertex = { "(" ~ VId ~ VLabel ~ ")" }
+Edge = { "(" ~ VId ~ VId ~ ELabel ~ ")" }
+VId = @{ "u" ~ (ASCII_DIGIT+) }
+VLabel = { ASCII_DIGIT+ }
+ELabel = { ASCII_DIGIT+ }
+
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" }

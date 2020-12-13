@@ -1,0 +1,16 @@
+[package]
+name = "opgm_tools"
+version = "0.0.0"
+authors = ["Yanxuan Cui <e-neo@qq.com>"]
+edition = "2018"
+
+[dependencies]
+clap = { version = "2.33", features = ["yaml"] }
+derive_more = "0.99"
+itertools = " 0.9"
+memmap = "0.7"
+pest = "2.1"
+pest_derive = "2.1"
+regex = "1.4"
+sqlite = "0.25"
+tempfile = "3.1"
