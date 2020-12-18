@@ -1,8 +1,11 @@
-use clap::{load_yaml, App, AppSettings, ArgMatches};
+use clap::{
+    crate_authors, crate_description, crate_name, crate_version, App, AppSettings, Arg, ArgMatches,
+    SubCommand,
+};
 use opgm_tools::data_graph::{bin_to_sqlite3, read_edges_file};
 use std::{error::Error, fs::File};
 
-fn handle_data(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
+fn handle_createdb(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
     match matches.value_of("FMT").unwrap() {
         "snap_edges" => {
             File::create(matches.value_of("OUTPUT").unwrap())?.set_len(0)?;
@@ -16,12 +19,26 @@ fn handle_data(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let yaml = load_yaml!("cli.yml");
-    let matches = App::from_yaml(yaml)
+    let matches = App::new(crate_name!())
+        .version(crate_version!())
+        .author(crate_authors!())
+        .about(crate_description!())
         .setting(AppSettings::SubcommandRequiredElseHelp)
+        .subcommand(
+            SubCommand::with_name("createdb")
+                .about("Creates SQLite3 file from other formats")
+                .arg(
+                    Arg::with_name("FMT")
+                        .required(true)
+                        .help("Format of input file(s)")
+                        .possible_values(&["snap_edges"]),
+                )
+                .arg(Arg::with_name("INPUT").required(true))
+                .arg(Arg::with_name("OUTPUT").required(true)),
+        )
         .get_matches();
-    if let Some(matches) = matches.subcommand_matches("data") {
-        handle_data(matches)?;
+    if let Some(matches) = matches.subcommand_matches("createdb") {
+        handle_createdb(matches)?;
     }
     Ok(())
 }

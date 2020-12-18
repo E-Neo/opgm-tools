@@ -1,11 +1,12 @@
 [package]
-name = "opgm_tools"
+name = "opgm-tools"
 version = "0.0.0"
 authors = ["Yanxuan Cui <e-neo@qq.com>"]
 edition = "2018"
+description = "A series of tools to help to evaluate opgm"
 
 [dependencies]
-clap = { version = "2.33", features = ["yaml"] }
+clap = "2.33"
 derive_more = "0.99"
 itertools = " 0.9"
 memmap = "0.7"

@@ -1,11 +1,13 @@
+use crate::types::{ELabel, VId, VLabel};
+
 pub fn write_sqlite3<VS, ES>(
     conn: &sqlite::Connection,
     vertices: VS,
     edges: ES,
 ) -> sqlite::Result<(usize, usize)>
 where
-    VS: IntoIterator<Item = (i64, i64)>,
-    ES: IntoIterator<Item = (i64, i64, i64)>,
+    VS: IntoIterator<Item = (VId, VLabel)>,
+    ES: IntoIterator<Item = (VId, VId, ELabel)>,
 {
     create_tables(conn)?;
     let num_vertices = insert_vertices(conn, vertices)?;
@@ -20,7 +22,7 @@ fn create_tables(conn: &sqlite::Connection) -> sqlite::Result<()> {
 
 fn insert_vertices<VS>(conn: &sqlite::Connection, vertices: VS) -> sqlite::Result<usize>
 where
-    VS: IntoIterator<Item = (i64, i64)>,
+    VS: IntoIterator<Item = (VId, VLabel)>,
 {
     let mut num_vertices = 0;
     conn.execute("BEGIN;")?;
@@ -37,7 +39,7 @@ where
 
 fn insert_edges<ES>(conn: &sqlite::Connection, edges: ES) -> sqlite::Result<usize>
 where
-    ES: IntoIterator<Item = (i64, i64, i64)>,
+    ES: IntoIterator<Item = (VId, VId, ELabel)>,
 {
     let mut num_edges = 0;
     conn.execute("BEGIN;")?;
@@ -56,20 +58,22 @@ where
 mod tests {
     use super::*;
 
-    fn read_vertices_edges(conn: &sqlite::Connection) -> (Vec<(i64, i64)>, Vec<(i64, i64, i64)>) {
+    fn read_vertices_edges(
+        conn: &sqlite::Connection,
+    ) -> (Vec<(VId, VLabel)>, Vec<(VId, VId, ELabel)>) {
         let (mut vertices, mut edges) = (vec![], vec![]);
         let mut select_vertices = conn.prepare("SELECT * FROM vertices;").unwrap();
         while let sqlite::State::Row = select_vertices.next().unwrap() {
             let vid: i64 = select_vertices.read(0).unwrap();
             let vlabel: i64 = select_vertices.read(1).unwrap();
-            vertices.push((vid, vlabel));
+            vertices.push((vid as VId, vlabel as VLabel));
         }
         let mut select_edges = conn.prepare("SELECT * FROM edges;").unwrap();
         while let sqlite::State::Row = select_edges.next().unwrap() {
-            let u1: i64 = select_edges.read(0).unwrap();
-            let u2: i64 = select_edges.read(1).unwrap();
+            let src: i64 = select_edges.read(0).unwrap();
+            let dst: i64 = select_edges.read(1).unwrap();
             let elabel: i64 = select_edges.read(2).unwrap();
-            edges.push((u1, u2, elabel));
+            edges.push((src as VId, dst as VId, elabel as ELabel));
         }
         (vertices, edges)
     }
