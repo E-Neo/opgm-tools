@@ -16,8 +16,8 @@ where
 }
 
 fn create_tables(conn: &sqlite::Connection) -> sqlite::Result<()> {
-    conn.execute("CREATE TABLE vertices (vid INT, vlabel INT);")?;
-    conn.execute("CREATE TABLE edges (src INT, dst INT, elabel INT);")
+    conn.execute("CREATE TABLE vertices (vid INT, vlabel INT)")?;
+    conn.execute("CREATE TABLE edges (src INT, dst INT, elabel INT)")
 }
 
 fn insert_vertices<VS>(conn: &sqlite::Connection, vertices: VS) -> sqlite::Result<usize>
@@ -25,15 +25,12 @@ where
     VS: IntoIterator<Item = (VId, VLabel)>,
 {
     let mut num_vertices = 0;
-    conn.execute("BEGIN;")?;
+    conn.execute("BEGIN")?;
     for (vid, vlabel) in vertices {
-        conn.execute(format!(
-            "INSERT INTO vertices VALUES ({}, {});",
-            vid, vlabel
-        ))?;
+        conn.execute(format!("INSERT INTO vertices VALUES ({}, {})", vid, vlabel))?;
         num_vertices += 1;
     }
-    conn.execute("END;")?;
+    conn.execute("END")?;
     Ok(num_vertices)
 }
 
@@ -42,15 +39,15 @@ where
     ES: IntoIterator<Item = (VId, VId, ELabel)>,
 {
     let mut num_edges = 0;
-    conn.execute("BEGIN;")?;
+    conn.execute("BEGIN")?;
     for (src, dst, elabel) in edges {
         conn.execute(format!(
-            "INSERT INTO edges VALUES ({}, {}, {});",
+            "INSERT INTO edges VALUES ({}, {}, {})",
             src, dst, elabel
         ))?;
         num_edges += 1;
     }
-    conn.execute("END;")?;
+    conn.execute("END")?;
     Ok(num_edges)
 }
 
@@ -62,13 +59,13 @@ mod tests {
         conn: &sqlite::Connection,
     ) -> (Vec<(VId, VLabel)>, Vec<(VId, VId, ELabel)>) {
         let (mut vertices, mut edges) = (vec![], vec![]);
-        let mut select_vertices = conn.prepare("SELECT * FROM vertices;").unwrap();
+        let mut select_vertices = conn.prepare("SELECT * FROM vertices").unwrap();
         while let sqlite::State::Row = select_vertices.next().unwrap() {
             let vid: i64 = select_vertices.read(0).unwrap();
             let vlabel: i64 = select_vertices.read(1).unwrap();
             vertices.push((vid as VId, vlabel as VLabel));
         }
-        let mut select_edges = conn.prepare("SELECT * FROM edges;").unwrap();
+        let mut select_edges = conn.prepare("SELECT * FROM edges").unwrap();
         while let sqlite::State::Row = select_edges.next().unwrap() {
             let src: i64 = select_edges.read(0).unwrap();
             let dst: i64 = select_edges.read(1).unwrap();

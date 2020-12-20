@@ -9,7 +9,7 @@ use std::{
     path::Path,
 };
 
-pub fn read_edges_file<P: AsRef<Path>>(path: P) -> std::io::Result<(File, File)> {
+pub fn snap_edges_to_bin<P: AsRef<Path>>(path: P) -> std::io::Result<(File, File)> {
     let input_file = File::open(path)?;
     let mut vertices = BufWriter::new(tempfile::tempfile()?);
     let mut edges = BufWriter::new(tempfile::tempfile()?);
@@ -36,15 +36,13 @@ pub fn read_edges_file<P: AsRef<Path>>(path: P) -> std::io::Result<(File, File)>
             })?;
         }
     }
-
     let vertices_temp = vertices_temp.into_inner()?;
     let mut mmap = unsafe { MmapMut::map_mut(&vertices_temp)? };
     let vids = unsafe {
         std::slice::from_raw_parts_mut(mmap.as_mut_ptr() as *mut VId, mmap.len() / size_of::<VId>())
     };
     vids.sort();
-    for vid in vids.iter().dedup() {
-        let vid: VId = *vid;
+    for &vid in vids.iter().dedup() {
         vertices.write_all(unsafe {
             std::slice::from_raw_parts(
                 &VIdVLabel(vid, 0) as *const _ as *const u8,
@@ -76,7 +74,7 @@ mod tests {
     #[test]
     fn test_read_edges_file() {
         let path = create_edges_file(&[(1, 2), (1, 3), (1, 4), (5, 6), (5, 7), (5, 8)]);
-        let (vertices, edges) = read_edges_file(path).unwrap();
+        let (vertices, edges) = snap_edges_to_bin(path).unwrap();
         let mut buffer = Vec::new();
         BufReader::new(vertices).read_to_end(&mut buffer).unwrap();
         let buffer_tmp: Vec<VIdVLabel> = (1..=8)
