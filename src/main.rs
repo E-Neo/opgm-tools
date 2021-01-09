@@ -2,9 +2,10 @@ use clap::{
     crate_authors, crate_description, crate_name, crate_version, App, AppSettings, Arg, ArgMatches,
     SubCommand,
 };
+use derive_more::{Display, Error};
 use opgm_tools::{
-    data_graph::{bin_to_sqlite3, snap_edges_to_bin, sqlite3_to_graphflow},
-    pattern_graph::{gisp_to_graphflow, parse},
+    data_graph::{bin_to_sqlite3, snap_edges_to_bin, sqlite3_to_graphflow, sqlite3_to_neo4j},
+    pattern_graph::{gisp_to_cypher, gisp_to_graphflow, parse},
 };
 use std::{
     error::Error,
@@ -12,6 +13,9 @@ use std::{
     io::{BufReader, BufWriter, Read, Write},
     path::Path,
 };
+
+#[derive(Debug, Display, Error)]
+struct InvalidPath;
 
 fn handle_createdb(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
     match matches.value_of("FMT").unwrap() {
@@ -30,22 +34,37 @@ fn handle_convertdb(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
     match matches.value_of("FMT").unwrap() {
         "graphflow" => {
             let conn = sqlite::open(matches.value_of("SQLITE3").unwrap())?;
-            let output = Path::new(matches.value_of("OUTPUT").unwrap());
-            let path = output.parent().expect("OUTPUT path");
-            let name = output
-                .file_name()
-                .expect("OUTPUT name")
-                .to_str()
-                .expect("OUTPUT UTF-8 name");
+            let (path, name) = split_path(matches.value_of("OUTPUT").unwrap())?;
             let mut vertices_buf =
                 BufWriter::new(File::create(path.join(format!("{}_vertices.csv", name)))?);
             let mut edges_buf =
                 BufWriter::new(File::create(path.join(format!("{}_edges.csv", name)))?);
             sqlite3_to_graphflow(&conn, &mut vertices_buf, &mut edges_buf)?;
         }
+        "neo4j" => {
+            let conn = sqlite::open(matches.value_of("SQLITE3").unwrap())?;
+            let (path, name) = split_path(matches.value_of("OUTPUT").unwrap())?;
+            let mut vertices_buf =
+                BufWriter::new(File::create(path.join(format!("{}_vertices.csv", name)))?);
+            let mut edges_buf =
+                BufWriter::new(File::create(path.join(format!("{}_edges.csv", name)))?);
+            sqlite3_to_neo4j(&conn, &mut vertices_buf, &mut edges_buf)?;
+        }
         _ => unreachable!(),
     }
     Ok(())
+}
+
+fn split_path(path: &str) -> Result<(&Path, &str), InvalidPath> {
+    let output = Path::new(path);
+    Ok((
+        output.parent().ok_or(InvalidPath)?,
+        output
+            .file_name()
+            .ok_or(InvalidPath)?
+            .to_str()
+            .ok_or(InvalidPath)?,
+    ))
 }
 
 fn handle_convertgisp(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
@@ -58,6 +77,16 @@ fn handle_convertgisp(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
                 &mut BufWriter::new(File::create(matches.value_of("OUTPUT").unwrap())?),
                 "{}",
                 gisp_to_graphflow(&parse(&gisp)?)
+            )?;
+        }
+        "cypher" => {
+            let mut gisp = String::new();
+            BufReader::new(File::open(matches.value_of("GISP").unwrap())?)
+                .read_to_string(&mut gisp)?;
+            writeln!(
+                &mut BufWriter::new(File::create(matches.value_of("OUTPUT").unwrap())?),
+                "{}",
+                gisp_to_cypher(&parse(&gisp)?)
             )?;
         }
         _ => unreachable!(),
@@ -88,7 +117,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .arg(
                     Arg::with_name("FMT")
                         .required(true)
-                        .possible_values(&["graphflow"]),
+                        .possible_values(&["graphflow", "neo4j"]),
                 )
                 .arg(Arg::with_name("SQLITE3").required(true))
                 .arg(Arg::with_name("OUTPUT").required(true)),
@@ -99,7 +128,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .arg(
                     Arg::with_name("FMT")
                         .required(true)
-                        .possible_values(&["graphflow"]),
+                        .possible_values(&["cypher", "graphflow"]),
                 )
                 .arg(Arg::with_name("GISP").required(true))
                 .arg(Arg::with_name("OUTPUT").required(true)),
