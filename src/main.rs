@@ -4,7 +4,10 @@ use clap::{
 };
 use derive_more::{Display, Error};
 use opgm_tools::{
-    data_graph::{bin_to_sqlite3, snap_edges_to_bin, sqlite3_to_graphflow, sqlite3_to_neo4j},
+    data_graph::{
+        bin_to_sqlite3, snap_edges_to_bin, sqlite3_to_graphflow, sqlite3_to_neo4j,
+        sqlite3_to_sqlite3,
+    },
     pattern_graph::{gisp_to_cypher, gisp_to_graphflow, parse},
 };
 use std::{
@@ -31,9 +34,9 @@ fn handle_createdb(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
 }
 
 fn handle_convertdb(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
+    let conn = sqlite::open(matches.value_of("SQLITE3").unwrap())?;
     match matches.value_of("FMT").unwrap() {
         "graphflow" => {
-            let conn = sqlite::open(matches.value_of("SQLITE3").unwrap())?;
             let (path, name) = split_path(matches.value_of("OUTPUT").unwrap())?;
             let mut vertices_buf =
                 BufWriter::new(File::create(path.join(format!("{}_vertices.csv", name)))?);
@@ -42,13 +45,22 @@ fn handle_convertdb(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
             sqlite3_to_graphflow(&conn, &mut vertices_buf, &mut edges_buf)?;
         }
         "neo4j" => {
-            let conn = sqlite::open(matches.value_of("SQLITE3").unwrap())?;
             let (path, name) = split_path(matches.value_of("OUTPUT").unwrap())?;
             let mut vertices_buf =
                 BufWriter::new(File::create(path.join(format!("{}_vertices.csv", name)))?);
             let mut edges_buf =
                 BufWriter::new(File::create(path.join(format!("{}_edges.csv", name)))?);
             sqlite3_to_neo4j(&conn, &mut vertices_buf, &mut edges_buf)?;
+        }
+        "sqlite3" => {
+            File::create(matches.value_of("OUTPUT").unwrap())?;
+            let new_conn = sqlite::open(matches.value_of("OUTPUT").unwrap())?;
+            sqlite3_to_sqlite3(
+                &conn,
+                &new_conn,
+                matches.value_of("num-vlabels").unwrap().parse()?,
+                matches.value_of("num-elabels").unwrap().parse()?,
+            );
         }
         _ => unreachable!(),
     }
@@ -114,13 +126,25 @@ fn main() -> Result<(), Box<dyn Error>> {
         .subcommand(
             SubCommand::with_name("convertdb")
                 .about("Converts SQLite3 file to other format")
-                .arg(
-                    Arg::with_name("FMT")
-                        .required(true)
-                        .possible_values(&["graphflow", "neo4j"]),
-                )
+                .arg(Arg::with_name("FMT").required(true).possible_values(&[
+                    "graphflow",
+                    "neo4j",
+                    "sqlite3",
+                ]))
                 .arg(Arg::with_name("SQLITE3").required(true))
-                .arg(Arg::with_name("OUTPUT").required(true)),
+                .arg(Arg::with_name("OUTPUT").required(true))
+                .arg(
+                    Arg::with_name("num-vlabels")
+                        .long("num-vlabels")
+                        .takes_value(true)
+                        .required_if("FMT", "sqlite3"),
+                )
+                .arg(
+                    Arg::with_name("num-elabels")
+                        .long("num-elabels")
+                        .takes_value(true)
+                        .required_if("FMT", "sqlite3"),
+                ),
         )
         .subcommand(
             SubCommand::with_name("convertgisp")
