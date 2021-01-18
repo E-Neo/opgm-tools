@@ -1,6 +1,5 @@
+use crate::SEED;
 use rand::{Rng, SeedableRng};
-
-const SEED: u64 = 19491001;
 
 pub fn sqlite3_to_sqlite3(
     old_conn: &sqlite::Connection,

@@ -1,6 +1,7 @@
 //! Abstract Syntax Tree
 
 use crate::types::{ELabel, VId, VLabel};
+use derive_more::Display;
 
 #[derive(Debug, PartialEq)]
 pub struct Ast {
@@ -36,7 +37,54 @@ impl Ast {
     pub fn edges(&self) -> &[(VId, VId, ELabel)] {
         &self.edges
     }
+
+    pub fn constraint(&self) -> Option<&Expr> {
+        self.constraint.as_ref()
+    }
 }
 
-#[derive(Debug, PartialEq)]
+impl std::fmt::Display for Ast {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "(match")?;
+        if !self.vertices().is_empty() {
+            write!(
+                f,
+                " (vertices {})",
+                self.vertices()
+                    .iter()
+                    .map(|&(vid, vlabel)| format!("(u{} {})", vid, vlabel))
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            )?;
+        }
+        if !self.arcs().is_empty() {
+            write!(
+                f,
+                " (arcs {})",
+                self.arcs()
+                    .iter()
+                    .map(|&(src, dst, elabel)| format!("(u{} u{} {})", src, dst, elabel))
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            )?;
+        }
+        if !self.edges().is_empty() {
+            write!(
+                f,
+                " (edges {})",
+                self.arcs()
+                    .iter()
+                    .map(|&(src, dst, elabel)| format!("(u{} u{} {})", src, dst, elabel))
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            )?;
+        }
+        if let Some(expr) = self.constraint() {
+            write!(f, " (where {})", expr)?;
+        }
+        writeln!(f, ")")
+    }
+}
+
+#[derive(Debug, Display, Clone, PartialEq)]
 pub enum Expr {}

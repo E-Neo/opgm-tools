@@ -8,7 +8,7 @@ use opgm_tools::{
         bin_to_sqlite3, snap_edges_to_bin, sqlite3_to_graphflow, sqlite3_to_neo4j,
         sqlite3_to_sqlite3,
     },
-    pattern_graph::{gisp_to_cypher, gisp_to_graphflow, parse},
+    pattern_graph::{gisp_to_cypher, gisp_to_gisp, gisp_to_graphflow, parse},
 };
 use std::{
     error::Error,
@@ -80,27 +80,22 @@ fn split_path(path: &str) -> Result<(&Path, &str), InvalidPath> {
 }
 
 fn handle_convertgisp(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
+    let mut gisp = String::new();
+    BufReader::new(File::open(matches.value_of("GISP").unwrap())?).read_to_string(&mut gisp)?;
+    let ast = parse(&gisp)?;
+    let mut output = BufWriter::new(File::create(matches.value_of("OUTPUT").unwrap())?);
     match matches.value_of("FMT").unwrap() {
-        "graphflow" => {
-            let mut gisp = String::new();
-            BufReader::new(File::open(matches.value_of("GISP").unwrap())?)
-                .read_to_string(&mut gisp)?;
-            writeln!(
-                &mut BufWriter::new(File::create(matches.value_of("OUTPUT").unwrap())?),
-                "{}",
-                gisp_to_graphflow(&parse(&gisp)?)
-            )?;
-        }
-        "cypher" => {
-            let mut gisp = String::new();
-            BufReader::new(File::open(matches.value_of("GISP").unwrap())?)
-                .read_to_string(&mut gisp)?;
-            writeln!(
-                &mut BufWriter::new(File::create(matches.value_of("OUTPUT").unwrap())?),
-                "{}",
-                gisp_to_cypher(&parse(&gisp)?)
-            )?;
-        }
+        "gisp" => writeln!(
+            &mut output,
+            "{}",
+            gisp_to_gisp(
+                &ast,
+                matches.value_of("num-vlabels").unwrap().parse()?,
+                matches.value_of("num-elabels").unwrap().parse()?
+            )
+        )?,
+        "graphflow" => writeln!(&mut output, "{}", gisp_to_graphflow(&ast))?,
+        "cypher" => writeln!(&mut output, "{}", gisp_to_cypher(&ast))?,
         _ => unreachable!(),
     }
     Ok(())
@@ -149,13 +144,25 @@ fn main() -> Result<(), Box<dyn Error>> {
         .subcommand(
             SubCommand::with_name("convertgisp")
                 .about("Converts gisp file to other format")
-                .arg(
-                    Arg::with_name("FMT")
-                        .required(true)
-                        .possible_values(&["cypher", "graphflow"]),
-                )
+                .arg(Arg::with_name("FMT").required(true).possible_values(&[
+                    "cypher",
+                    "gisp",
+                    "graphflow",
+                ]))
                 .arg(Arg::with_name("GISP").required(true))
-                .arg(Arg::with_name("OUTPUT").required(true)),
+                .arg(Arg::with_name("OUTPUT").required(true))
+                .arg(
+                    Arg::with_name("num-vlabels")
+                        .long("num-vlabels")
+                        .takes_value(true)
+                        .required_if("FMT", "gisp"),
+                )
+                .arg(
+                    Arg::with_name("num-elabels")
+                        .long("num-elabels")
+                        .takes_value(true)
+                        .required_if("FMT", "gisp"),
+                ),
         )
         .get_matches();
     if let Some(matches) = matches.subcommand_matches("createdb") {
