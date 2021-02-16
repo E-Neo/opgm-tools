@@ -82,7 +82,7 @@ impl std::fmt::Display for Ast {
         if let Some(expr) = self.constraint() {
             write!(f, " (where {})", expr)?;
         }
-        writeln!(f, ")")
+        write!(f, ")")
     }
 }
 

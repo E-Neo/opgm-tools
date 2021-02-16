@@ -8,7 +8,8 @@ use opgm_tools::{
         bin_to_sqlite3, snap_edges_to_bin, sqlite3_to_graphflow, sqlite3_to_neo4j,
         sqlite3_to_sqlite3,
     },
-    pattern_graph::{gisp_to_cypher, gisp_to_gisp, gisp_to_graphflow, parse},
+    pattern_graph::{gisp_to_cypher, gisp_to_gisp, gisp_to_graphflow, gisp_to_star, parse},
+    types::VId,
 };
 use std::{
     error::Error,
@@ -101,6 +102,44 @@ fn handle_convertgisp(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+fn handle_gispinfo(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
+    let gisp_path = Path::new(matches.value_of("GISP").unwrap());
+    let mut gisp = String::new();
+    BufReader::new(File::open(gisp_path)?).read_to_string(&mut gisp)?;
+    let ast = parse(&gisp)?;
+    println!("num_vertices: {}", ast.vertices().len());
+    println!("num_arcs: {}", ast.arcs().len());
+    println!("num_edges: {}", ast.edges().len());
+    Ok(())
+}
+
+fn handle_stars(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
+    let gisp_path = Path::new(matches.value_of("GISP").unwrap());
+    let mut gisp = String::new();
+    BufReader::new(File::open(gisp_path)?).read_to_string(&mut gisp)?;
+    let ast = parse(&gisp)?;
+    let outdir = Path::new(matches.value_of("OUTDIR").unwrap());
+    let roots: Vec<VId> = matches
+        .value_of("ROOTS")
+        .unwrap()
+        .split(",")
+        .map(|v| v.parse::<VId>().unwrap())
+        .collect();
+    for root in roots {
+        writeln!(
+            &mut BufWriter::new(File::create(outdir.join(&format!(
+                "{}_{}.{}",
+                gisp_path.file_stem().unwrap().to_string_lossy(),
+                root,
+                gisp_path.extension().unwrap().to_string_lossy()
+            )))?),
+            "{}",
+            gisp_to_star(&ast, root)
+        )?;
+    }
+    Ok(())
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     let matches = App::new(crate_name!())
         .version(crate_version!())
@@ -164,6 +203,13 @@ fn main() -> Result<(), Box<dyn Error>> {
                         .required_if("FMT", "gisp"),
                 ),
         )
+        .subcommand(SubCommand::with_name("gispinfo").arg(Arg::with_name("GISP").required(true)))
+        .subcommand(
+            SubCommand::with_name("stars")
+                .arg(Arg::with_name("GISP").required(true))
+                .arg(Arg::with_name("OUTDIR").required(true))
+                .arg(Arg::with_name("ROOTS").required(true)),
+        )
         .get_matches();
     if let Some(matches) = matches.subcommand_matches("createdb") {
         handle_createdb(matches)?;
@@ -171,6 +217,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         handle_convertdb(matches)?;
     } else if let Some(matches) = matches.subcommand_matches("convertgisp") {
         handle_convertgisp(matches)?;
+    } else if let Some(matches) = matches.subcommand_matches("gispinfo") {
+        handle_gispinfo(matches)?;
+    } else if let Some(matches) = matches.subcommand_matches("stars") {
+        handle_stars(matches)?;
     }
     Ok(())
 }
