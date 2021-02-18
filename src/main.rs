@@ -5,8 +5,7 @@ use clap::{
 use derive_more::{Display, Error};
 use opgm_tools::{
     data_graph::{
-        bin_to_sqlite3, snap_edges_to_bin, sqlite3_to_graphflow, sqlite3_to_neo4j,
-        sqlite3_to_sqlite3,
+        snap_edges_to_sqlite3, sqlite3_to_graphflow, sqlite3_to_neo4j, sqlite3_to_sqlite3,
     },
     pattern_graph::{gisp_to_cypher, gisp_to_gisp, gisp_to_graphflow, gisp_to_star, parse},
     types::VId,
@@ -25,9 +24,10 @@ fn handle_createdb(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
     match matches.value_of("FMT").unwrap() {
         "snap_edges" => {
             File::create(matches.value_of("SQLITE3").unwrap())?;
-            let (vertices, edges) = snap_edges_to_bin(matches.value_of("INPUT").unwrap())?;
-            let conn = sqlite::open(matches.value_of("SQLITE3").unwrap())?;
-            bin_to_sqlite3(&conn, &vertices, &edges)?;
+            snap_edges_to_sqlite3(
+                &sqlite::open(matches.value_of("SQLITE3").unwrap())?,
+                &File::open(matches.value_of("INPUT").unwrap())?,
+            )?;
         }
         _ => unreachable!(),
     }
@@ -117,7 +117,7 @@ fn handle_stars(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
     let gisp_path = Path::new(matches.value_of("GISP").unwrap());
     let mut gisp = String::new();
     BufReader::new(File::open(gisp_path)?).read_to_string(&mut gisp)?;
-    let ast = parse(&gisp)?;
+    let mut ast = parse(&gisp)?;
     let outdir = Path::new(matches.value_of("OUTDIR").unwrap());
     let roots: Vec<VId> = matches
         .value_of("ROOTS")
@@ -136,6 +136,22 @@ fn handle_stars(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
             "{}",
             gisp_to_star(&ast, root)
         )?;
+        match matches.value_of("method").unwrap() {
+            "opgm" => {}
+            "stwig" => {
+                ast.arcs = ast
+                    .arcs
+                    .into_iter()
+                    .filter(|&(src, dst, _)| src != root && dst != root)
+                    .collect();
+                ast.edges = ast
+                    .edges
+                    .into_iter()
+                    .filter(|&(src, dst, _)| src != root && dst != root)
+                    .collect();
+            }
+            _ => unreachable!(),
+        }
     }
     Ok(())
 }
@@ -208,7 +224,13 @@ fn main() -> Result<(), Box<dyn Error>> {
             SubCommand::with_name("stars")
                 .arg(Arg::with_name("GISP").required(true))
                 .arg(Arg::with_name("OUTDIR").required(true))
-                .arg(Arg::with_name("ROOTS").required(true)),
+                .arg(Arg::with_name("ROOTS").required(true))
+                .arg(
+                    Arg::with_name("method")
+                        .long("method")
+                        .default_value("opgm")
+                        .possible_values(&["opgm", "stwig"]),
+                ),
         )
         .get_matches();
     if let Some(matches) = matches.subcommand_matches("createdb") {

@@ -5,10 +5,10 @@ use derive_more::Display;
 
 #[derive(Debug, PartialEq)]
 pub struct Ast {
-    vertices: Vec<(VId, VLabel)>,
-    arcs: Vec<(VId, VId, ELabel)>,
-    edges: Vec<(VId, VId, ELabel)>,
-    constraint: Option<Expr>,
+    pub vertices: Vec<(VId, VLabel)>,
+    pub arcs: Vec<(VId, VId, ELabel)>,
+    pub edges: Vec<(VId, VId, ELabel)>,
+    pub constraint: Option<Expr>,
 }
 
 impl Ast {

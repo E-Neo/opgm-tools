@@ -229,6 +229,7 @@ dependencies = [
  "clap",
  "derive_more",
  "itertools",
+ "lazy_static",
  "memmap",
  "pest",
  "pest_derive",
