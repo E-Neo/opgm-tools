@@ -1,48 +1,34 @@
 use crate::types::{VId, VLabel};
-use itertools::Itertools;
-use lazy_static::lazy_static;
-use memmap::MmapMut;
-use regex::Regex;
 use std::{
+    collections::BTreeSet,
     fs::File,
-    io::{BufRead, BufReader, BufWriter, Write},
-    mem::size_of,
+    io::{BufRead, BufReader},
 };
 
 pub fn snap_edges_to_sqlite3(
     conn: &sqlite::Connection,
     edges_file: &File,
 ) -> Result<(usize, usize), Box<dyn std::error::Error>> {
-    lazy_static! {
-        static ref RE: Regex = Regex::new(r"^(\d+)\D+(\d+)\D*$").unwrap();
-    }
     create_tables(conn)?;
-    let mut vertices = BufWriter::new(tempfile::tempfile()?);
+    let mut vids = BTreeSet::new();
     let mut num_edges = 0;
     conn.execute("BEGIN")?;
     for lines_item in BufReader::new(edges_file).lines() {
-        let lines_item = lines_item?;
-        let line = lines_item.trim();
-        if let Some(caps) = RE.captures(line) {
-            let src: VId = caps[1].parse().unwrap();
-            let dst: VId = caps[2].parse().unwrap();
-            vertices.write_all(unsafe {
-                std::slice::from_raw_parts(
-                    &[src, dst] as *const _ as *const u8,
-                    2 * size_of::<VId>(),
-                )
-            })?;
+        let line = lines_item?;
+        if let &[Ok(src), Ok(dst)] = line
+            .split_whitespace()
+            .map(|n| n.parse::<VId>())
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
+            vids.insert(src);
+            vids.insert(dst);
             conn.execute(format!("INSERT INTO edges VALUES ({}, {}, 0)", src, dst))?;
             num_edges += 1;
         }
     }
     conn.execute("END")?;
-    let mut mmap = unsafe { MmapMut::map_mut(&vertices.into_inner()?)? };
-    let vids = unsafe {
-        std::slice::from_raw_parts_mut(mmap.as_mut_ptr() as *mut VId, mmap.len() / size_of::<VId>())
-    };
-    vids.sort();
-    let num_vertices = insert_vertices(conn, vids.iter().dedup().map(|&vid| (vid, 0)))?;
+    let num_vertices = insert_vertices(conn, vids.into_iter().map(|vid| (vid, 0)))?;
     Ok((num_vertices, num_edges))
 }
 
